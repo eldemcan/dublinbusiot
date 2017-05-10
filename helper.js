@@ -9,40 +9,71 @@ parseTramData(xml2js, tramResponseBody) {
    return trams;
 }
 
-stripTramsData(trams) {
-   var luasData = [];
-   trams.forEach((tram) => {
+stripTramsData(trams, limit) {
+  var luasData = [];
+    trams.forEach((tram) => {
       var temp = {
-       destination: tram.$.destination,
-       dueMins: tram.$.dueMins
+        destination: this.filterLuasDestionationField(tram.$.destination),
+        dueMins: tram.$.dueMins
       }
       luasData.push(temp);
-   });
-   return luasData;
+    });
+  // return first 3 option in order to fit into lcd screen
+  return luasData.slice(0,limit);
+}
+
+//at the moment there one destination
+//creating this method in case more stop comes
+filterLuasDestionationField(luasDestinationName) {
+  const stopWords = ['the'];
+  let filteredDestinationName = '';
+  luasDestinationName = luasDestinationName.toLowerCase();
+
+  stopWords.forEach((word) => {
+    filteredDestinationName = luasDestinationName.replace(word, "").trim();
+  });
+
+  return filteredDestinationName;
 }
 
 stripWeatherData(weatherData) {
-  const speedKph = Helper.convertMphKph(weatherData.wind.speed);
+  const speedKph = this.convertMphKph(weatherData.wind.speed);
+  const temperature = Math.ceil(weatherData.main.temp) || '';
+  const description = this.summarizeWeatherDescriptionField(weatherData.weather[0].description);
 
   return {
-    description: speedKph || '',
-    temperature: weatherData.main.temp || '',
-    windSpeed: weatherData.wind.speed || '',
+    description: description || '',
+    temperature: temperature,
+    windSpeed: speedKph || '',
   }
+}
+
+summarizeWeatherDescriptionField(weatherDescription) {
+  let keywords = ['cloud', 'drizzle', 'thunderstrom', 'rain', 'snow', 'breeze'];
+
+  for (let item of keywords) {
+    if (weatherDescription.includes(item)) {
+      return item;
+    }
+  }
+  //lcd can display max 10 char among with other information
+  return weatherDescription.substring(0,10);
 }
 
 convertMphKph(mphString) {
   const mph = parseFloat(mphString);
+  const kph = Math.ceil((mph * 1.6093440));
 
-  return (mph * 1.6093440).toFixed(2);
+  return kph;
 }
 
-//TODO maybe return first 3 option in order to fit into lcd screen
-filterBusData(rawData) {
+filterBusData(rawData, limit) {
   const busNumberFilterCriteria = ['54A', '27', '65'];
-  const filteredBusData = rawData.filter((item) => {
+  // return first 3 option in order to fit into lcd screen
+  let filteredBusData = rawData.filter((item) => {
     return busNumberFilterCriteria.includes(item.route);
-  });
+  }).slice(0,limit);
+
   return filteredBusData;
 }
 
@@ -53,11 +84,11 @@ stripBusData(busDatas) {
       route: busData['route'],
       duetime: busData['duetime']
     }
-    busObjectList.push(temp);
-  });
+      busObjectList.push(temp);
+   });
 
-  return busObjectList;
-}
+    return busObjectList;
+  }
 }
 
 module.exports = Helper;

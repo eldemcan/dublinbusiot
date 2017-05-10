@@ -6,6 +6,7 @@
 #include "WiFiUdp.h"
 #include "TaskScheduler.h"
 
+const bool DEBUG = true;
 const char* serverAddress = "192.168.1.33";
 const char* wifiSid = "skyconway_com-2263";
 const char* wifiPassword = "labt5c5ghc";
@@ -16,12 +17,16 @@ const int MAXLINENUMBER = 3; // max line number for transportation information
 const int lcdWidth = 20;
 const int lcdHeight = 4;
 
+const int oneMinute = 60000;
+const int eightHours = oneMinute * 480;
+
 const int   NtpOffset = 3600;      // In seconds
-const int   NtpInterval =  60000;    // In miliseconds
+const int   NtpInterval =  oneMinute;    // In miliseconds
 const char* NtpAddress =  "0.ie.pool.ntp.org";
 
+
 const int buttonPin = D5;
-int buttonState = 0; 
+int buttonState = 0;
 
 LiquidCrystal_I2C lcd(0x27, lcdWidth, lcdHeight);
 
@@ -35,15 +40,30 @@ int lineNumber = MAXLINENUMBER;
 // Callback methods prototypes
 void getWeatherData();
 void getTransportationData();
+void scheduleDataTasks();
 
 //Tasks
-Task taskGetTransportationData(10000, TASK_FOREVER, &getTransportationData);
-Task taskGetWeatherData(20000, TASK_FOREVER, &getWeatherData);
+Task taskGetTransportationData(oneMinute, TASK_FOREVER, &getTransportationData);
+Task taskGetWeatherData(eightHours, TASK_FOREVER, &getWeatherData);
+Task taskScheduleDataTasks(10000, TASK_FOREVER, &scheduleDataTasks);
+
 Scheduler runner;
+
+void serialPrint(String message, int val = -2) {
+  if (DEBUG) {
+    Serial.print(message);
+      if (val!= -2){
+        Serial.println(val);
+      }
+      else {
+        Serial.println();
+    }  
+  }
+}
 
 void setup() {
   Serial.begin(115200);
-  setupGpio();  
+  setupGpio();
   setupNetwork();
   setupNtpClient();
   setupLcd();
@@ -58,7 +78,9 @@ void setupTaskManager() {
   runner.init();
   runner.addTask(taskGetWeatherData);
   runner.addTask(taskGetTransportationData);
- 
+  runner.addTask(taskScheduleDataTasks);
+  taskScheduleDataTasks.enable();
+  delay(5000);
 }
 
 void setupNtpClient() {
@@ -66,39 +88,41 @@ void setupNtpClient() {
 }
 
 void setupNetwork() {
-  Serial.println("Connecting...");
+  serialPrint("Connecting...");
   client.begin(wifiSid, wifiPassword);
-  Serial.println("Connected!");
+  serialPrint("Connected!");
 }
 
 void setupLcd() {
   lcd.begin(lcdWidth,lcdHeight);
   lcd.init();
   lcd.noBlink();
-  lcd.backlight();  
+  lcd.backlight();
 }
 
 void sleepingMode() {
   taskGetWeatherData.disable();
   taskGetTransportationData.disable();
+  lcd.clear();
   lcd.noBacklight();
 }
 
-void something () {
-  const int oneMinute = 60000;
-  const int eightHours = oneMinute * 480;
+void scheduleDataTasks () {
   const int hour = timeClient.getHours();
   const int day = timeClient.getDay(); //0 is sunday 1,2,3,4,5,6
+
+  serialPrint("hour:", hour);
+  serialPrint("day:", day);
+
   timeClient.update();
 
    //weekdays
-  if (day>=1 && day<=5) { 
+  if (day>=1 && day<=5) {
     //busy hour more requests here
-    if (hour >= 7 && hour <= 10 ) { 
+    if (hour >= 7 && hour <= 10 ) {
+      serialPrint("Enabling tasks for morning");
       taskGetWeatherData.enable();
       taskGetTransportationData.enable();
-      taskGetTransportationData.setInterval(oneMinute);
-      taskGetWeatherData.setInterval(oneMinute);
     }
     else {
       sleepingMode();
@@ -106,46 +130,40 @@ void something () {
   }
   //weekends
   else {
-     sleepingMode();
+    serialPrint("Weekend work on demand");
+    sleepingMode();
   }
 }
 
 void loop() {
-  // runner.execute();
-  // timeClient.update();
-  // Serial.println(timeClient.getFormattedTime());
-  // lcd.clear();
-  // getTransportationData();
-  // getWeatherData();
-  // something();
-  // delay(10000);
-
-  // readDataWithButton();
-  getWeatherData();
-  getTransportationData();
-  delay(30000);
+  runner.execute();
+  readDataWithButton();
 }
 
 void readDataWithButton() {
   const int buttonState = digitalRead(buttonPin);
 
   if (buttonState == HIGH) {
-      clearLcdLine(0);
+      serialPrint("Button pressed");
+      lcd.clear();
+      lcd.backlight();
+      getTransportationData();
+      getWeatherData();
+      delay(10000);
   }
 }
 
 void clearLcdLine(int lineNumber) {
-  
+
   for (int i = 0; i < lcdWidth; ++i) {
     lcd.setCursor(i,lineNumber);
-    lcd.print(" ");  
+    lcd.print(" ");
   }
 }
 
 void printWeatherData(const String weatherMessage) {
    const int weatherDataLine = lcdHeight - 1;
 
-   Serial.println(weatherMessage);
    clearLcdLine(weatherDataLine);
    lcd.setCursor(0, weatherDataLine);
    lcd.print(weatherMessage);
@@ -154,14 +172,14 @@ void printWeatherData(const String weatherMessage) {
 String getRequest(const char* endPoint) {
   String response;
   const int statusCode = client.get(endPoint, &response);
-  Serial.print("Status code:");
-  Serial.println(statusCode);
+  serialPrint("Status code:", statusCode);
+  
   return response;
 }
 
-
 void getTransportationData() {
-  Serial.println("Getting transportation data");
+  serialPrint("Getting transportation data");
+
   const String dublinBusData = getRequest(dublinbusDataEndPoint);
   const String luasData = getRequest(luasDataEndPoint);
 
@@ -174,20 +192,18 @@ void getTransportationData() {
     luasDataArraySize = (rootJsonLuas.size() > MAXLINENUMBER) ? MAXLINENUMBER: rootJsonLuas.size();
   }
   else {
-    Serial.print("Could not parse luas data");
+    serialPrint("Could not parse luas data");
   }
 
   if (rootJsonDublinBus.success()) {
     dublinBusDataArraySize = (rootJsonDublinBus.size() > MAXLINENUMBER) ? MAXLINENUMBER : rootJsonDublinBus.size();
   }
   else {
-    Serial.print("Could not parse Dublin bus data");
+    serialPrint("Could not parse Dublin bus data");
   }
 
-  Serial.print("Luas array size:");
-  Serial.println(luasDataArraySize);
-  Serial.print("Dublin bus array size:");
-  Serial.println(dublinBusDataArraySize);
+  serialPrint("Luas array size:", luasDataArraySize);
+  serialPrint("Dublin bus array size:", dublinBusDataArraySize);
   
   String* messages = createLcdMessages(luasDataArraySize, dublinBusDataArraySize, rootJsonLuas, rootJsonDublinBus);
   printLcdMessages(messages);
@@ -207,66 +223,60 @@ String* createLcdMessages(int luasDataArraySize, int dublinBusDataArraySize, Jso
 
   String* lcdMessages = new String[lineNumber];
 
-  Serial.print("commonSmallIndex:");
-  Serial.println(commonSmallIndex);
+  serialPrint("commonSmallIndex:", commonSmallIndex);
 
   for (int i = 0; i < commonSmallIndex; i++) {
-    Serial.println("Priting data for common loop");
+    serialPrint("Priting data for common loop");
     const char* busRoute = rootJsonDublinBus[i]["route"];
     const char* busDueTime = rootJsonDublinBus[i]["duetime"];
     const char* luasDestination = rootJsonLuas[i]["destination"];
     const char* luasDueMins = rootJsonLuas[i]["dueMins"];
     lcdMessages[i] = String(busRoute)+ ' ' + String(busDueTime) + " * " + String(luasDestination) + ' ' + String(luasDueMins);
-    Serial.println(lcdMessages[i]);
+    serialPrint(lcdMessages[i]);
   }
 
   //print rest of the dublin bus data
   if (commonSmallIndex == luasDataArraySize) {
-    Serial.print("Printing rest of the Dublin bus data");
+    serialPrint("Printing rest of the Dublin bus data");
 
     for (int i = commonSmallIndex; i<dublinBusDataArraySize; i++) {
       const char* busRoute = rootJsonDublinBus[i]["route"];
       const char* busDueTime = rootJsonDublinBus[i]["duetime"];
       lcdMessages[i] = String(busRoute) + ' ' + String(busDueTime);
-      Serial.println(lcdMessages[i]);
+      serialPrint(lcdMessages[i]);
     }
   }
   //print rest of the luas data
   else {
-    Serial.println("Printing rest of the luas data");
+    serialPrint("Printing rest of the luas data");
     for (int i = commonSmallIndex; i<luasDataArraySize; i++ ) {
-      Serial.println("In the loop");
       const char* luasDestination = rootJsonLuas[i]["destination"];
-      Serial.println("Destination");
-      Serial.println(luasDestination);
       const char* luasDueMins =  rootJsonLuas[i]["dueMins"];
       lcdMessages[i] = "********" + String(luasDestination) + ' ' + String(luasDueMins);
-      Serial.println(lcdMessages[i]);
+      serialPrint(lcdMessages[i]);
     }
   }
   return lcdMessages;
 }
 
 void printLcdMessages(String messages[]) {
-  Serial.println("printLcdMessages function");
-  Serial.println(lineNumber);
 
-  for(int i=0; i<lineNumber; i++) {    
+  for(int i=0; i<lineNumber; i++) {
     clearLcdLine(i);
     lcd.setCursor(0,i);
     lcd.print(messages[i]);
-    Serial.println(messages[i]);
+    serialPrint(messages[i]);
   }
 }
 
 void getWeatherData() {
-  Serial.println("Getting weather data");
-  
+  serialPrint("Getting weather data");
+
   const String weatherData = getRequest(weatherDataEndPoint);
-  
+
   JsonObject& rootJson = jsonBuffer.parseObject(weatherData);
   if (!rootJson.success()) {
-    Serial.println("JSON parsing failed!");
+    serialPrint("JSON parsing failed!");
   }
   else {
     const char* description = rootJson["description"];
