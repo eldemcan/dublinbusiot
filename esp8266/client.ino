@@ -8,8 +8,8 @@
 
 const bool DEBUG = true;
 const char* serverAddress = "192.168.1.33";
-const char* wifiSid = "skyconway_com-2263";
-const char* wifiPassword = "labt5c5ghc";
+const char* wifiSid = "*****";
+const char* wifiPassword = "*****";
 const char* luasDataEndPoint = "/luas/tallaght";
 const char* weatherDataEndPoint = "/weather/Dublin,IE";
 const char* dublinbusDataEndPoint = "/bus/4646";
