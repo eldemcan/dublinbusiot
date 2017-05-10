@@ -92,6 +92,6 @@ app.get('/weather/:city,:country', (req,res) => {
   }
 });
 
-app.listen(3000, () => {
+app.listen(port, () => {
   console.info(`Server started at ${port}`);
 });
