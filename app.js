@@ -9,6 +9,10 @@ var cache = require('memory-cache');
 var app = express();
 var helper = new Helper();
 
+// set the port of our application
+// process.env.PORT lets the port be set by Heroku
+var port = process.env.PORT || 8080;
+
 app.get('/luas/:stopId/:limit*?', (req,res) => {
   const stopId = req.params.stopId;
   const limit = req.params.limit || 3;
@@ -89,5 +93,5 @@ app.get('/weather/:city,:country', (req,res) => {
 });
 
 app.listen(3000, () => {
-  console.info('Server Started');
+  console.info(`Server started at ${port}`);
 });
