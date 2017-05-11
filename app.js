@@ -28,15 +28,19 @@ app.get('/luas/:stopId/:limit*?', (req,res) => {
    .catch((error) => {
      console.error(error);
      console.error('Could not get data from luas service');
-     const stripedTramsData = cache.get(stopId) || {};
+     const stripedTramsData = cache.get(stopId) || [{}];
      res.json(stripedTramsData);
    });
 });
 
 
-app.get('/bus/:stopNo/:limit*?', (req, res) => {
+app.get('/bus/:stopNo/:filter*?/:limit*?', (req, res) => {
   const stopNo = req.params.stopNo;
   const limit = req.params.limit || 3;
+  //max 10 filter criterias
+  const busNumberFilterCriteria = (req.params.filter == undefined) ? ['54A', '27', '65'] : req.params.filter.split(',',"10");
+  console.log(busNumberFilterCriteria);
+
   const url=`https://data.dublinked.ie/cgi-bin/rtpi/realtimebusinformation?stopid=${stopNo}&format=json`;
 
   request(url)
@@ -44,7 +48,7 @@ app.get('/bus/:stopNo/:limit*?', (req, res) => {
       const parsedData = JSON.parse(body);
       const dublinBusErrorCode = parsedData['errorcode'];
         if (dublinBusErrorCode!=1) {
-          const filteredBusData = helper.filterBusData(parsedData['results'], limit)
+          const filteredBusData = helper.filterBusData(parsedData['results'], busNumberFilterCriteria, limit)
           const stripedBusData = helper.stripBusData(filteredBusData);
           cache.put(stopNo, stripedBusData);
 
@@ -52,14 +56,14 @@ app.get('/bus/:stopNo/:limit*?', (req, res) => {
         }
         else {
           console.error("Something wrong in Dublin bus end point");
-          const stripedBusData = cache.get(stopNo) || {};
+          const stripedBusData = cache.get(stopNo) || [{}];
           res.json(stripedBusData);
         }
     })
     .catch((error) => {
       console.error(error);
       console.error("Can't get answer from Dublin Bus API");
-      const stripedBusData = cache.get(stopNo) || {};
+      const stripedBusData = cache.get(stopNo) || [{}];
       res.json(stripedBusData);
     });
 });
