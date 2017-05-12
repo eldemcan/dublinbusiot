@@ -67,8 +67,7 @@ convertMphKph(mphString) {
   return kph;
 }
 
-filterBusData(rawData, limit) {
-  const busNumberFilterCriteria = ['54A', '27', '65'];
+filterBusData(rawData,busNumberFilterCriteria, limit) {
   // return first 3 option in order to fit into lcd screen
   let filteredBusData = rawData.filter((item) => {
     return busNumberFilterCriteria.includes(item.route);

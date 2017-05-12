@@ -38,7 +38,8 @@ app.get('/bus/:stopNo/:filter*?/:limit*?', (req, res) => {
   const stopNo = req.params.stopNo;
   const limit = req.params.limit || 3;
   //max 10 filter criterias
-  const busNumberFilterCriteria = (req.params.filter == undefined) ? ['54A', '27', '65'] : req.params.filter.split(',',"10");
+  const defaultFilterCriteria = ['54A', '27', '65'];
+  const busNumberFilterCriteria = (req.params.filter == undefined) ? defaultFilterCriteria : req.params.filter.split(',',"10");
   console.log(busNumberFilterCriteria);
 
   const url=`https://data.dublinked.ie/cgi-bin/rtpi/realtimebusinformation?stopid=${stopNo}&format=json`;
