@@ -34,9 +34,10 @@ app.get('/luas/:stopId/:limit*?', (req,res) => {
 });
 
 
-app.get('/bus/:stopNo/:filter*?/:limit*?', (req, res) => {
+app.get('/bus/:stopNo/:filter?/:limit?', (req, res) => {
   const stopNo = req.params.stopNo;
   const limit = req.params.limit || 3;
+
   //max 10 filter criterias
   const defaultFilterCriteria = ['54A', '27', '65'];
   const busNumberFilterCriteria = (req.params.filter == undefined) ? defaultFilterCriteria : req.params.filter.split(',',"10");
