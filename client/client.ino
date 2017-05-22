@@ -1,15 +1,16 @@
 #include "LiquidCrystal_I2C.h"
-#include "RestClient.h"
 #include "ArduinoJson.h"
 #include "NTPClient.h"
 #include "ESP8266WiFi.h"
+#include "ESP8266WiFiMulti.h"
+#include "ESP8266HTTPClient.h"
 #include "WiFiUdp.h"
 #include "TaskScheduler.h"
 
 const bool DEBUG = true;
 const char* serverAddress = "dublinpt.herokuapp.com";
 const char* wifiSid = "skyconway_com-2263";
-const char* wifiPassword = "*";
+const char* wifiPassword = "";
 const char* luasDataEndPoint = "/luas/tallaght";
 const char* weatherDataEndPoint = "/weather/Dublin,IE";
 const char* dublinbusDataEndPoint = "/bus/4646";
@@ -24,21 +25,20 @@ const int   NtpOffset = 3600;      // In seconds
 const int   NtpInterval =  oneMinute;    // In miliseconds
 const char* NtpAddress =  "0.ie.pool.ntp.org";
 
-
 const int buttonPin = D5;
 int buttonState = 0;
 
-const size_t weatherJsonBufferSize = JSON_OBJECT_SIZE(3) + 90;
+const size_t weatherJsonBufferSize = JSON_OBJECT_SIZE(3) + 80;
 const size_t transportationJsonBufferSize = JSON_ARRAY_SIZE(3) + 3 * JSON_OBJECT_SIZE(2) + 80;
 
 LiquidCrystal_I2C lcd(0x27, lcdWidth, lcdHeight);
 
 WiFiUDP ntpUDP;
+ESP8266WiFiMulti WiFiMulti;
 NTPClient timeClient(ntpUDP, NtpAddress, NtpOffset, NtpInterval);
 
-RestClient client = RestClient(serverAddress);
-
 int lineNumber = MAXLINENUMBER;
+bool getData = false;
 
 // Callback methods prototypes
 void getWeatherData();
@@ -46,9 +46,7 @@ void getTransportationData();
 void scheduleDataTasks();
 
 //Tasks
-Task taskGetTransportationData(oneMinute, TASK_FOREVER, &getTransportationData);
-Task taskGetWeatherData(eightHours, TASK_FOREVER, &getWeatherData);
-Task taskScheduleDataTasks(30000, TASK_FOREVER, &scheduleDataTasks);
+Task taskScheduleDataTasks(oneMinute, TASK_FOREVER, &scheduleDataTasks);
 
 Scheduler runner;
 
@@ -79,8 +77,6 @@ void setupGpio() {
 
 void setupTaskManager() {
   runner.init();
-  runner.addTask(taskGetWeatherData);
-  runner.addTask(taskGetTransportationData);
   runner.addTask(taskScheduleDataTasks);
   taskScheduleDataTasks.enable();
   delay(5000);
@@ -92,8 +88,23 @@ void setupNtpClient() {
 
 void setupNetwork() {
   serialPrint("Connecting...");
-  client.begin(wifiSid, wifiPassword);
-  serialPrint("Connected!");
+  WiFiMulti.addAP(wifiSid, wifiPassword);
+  tryNetWorkConnectionNthTime(5);
+}
+
+void tryNetWorkConnectionNthTime(int tryCount) {
+
+  while (WiFiMulti.run() != WL_CONNECTED && tryCount != 5) {
+    if ((WiFiMulti.run() == WL_CONNECTED)) {
+      serialPrint("Connected!");
+    }
+    else {
+      serialPrint("Could not connect in setup()");
+    }
+    delay(1000);
+    tryCount++;
+    serialPrint("Retrying connection", tryCount);
+  }
 }
 
 void setupLcd() {
@@ -104,43 +115,33 @@ void setupLcd() {
 }
 
 void sleepingMode() {
-  if (!taskGetWeatherData.isEnabled()) {
-    taskGetWeatherData.disable();
-  }
-  if (!taskGetTransportationData.isEnabled()) {
-    taskGetTransportationData.disable();
-  }
-
   lcd.clear();
   lcd.noBacklight();
+  Serial.flush();
 }
 
 void scheduleDataTasks () {
-  const int hour = timeClient.getHours();
-  const int day = timeClient.getDay(); //0 is sunday 1,2,3,4,5,6
 
-  serialPrint("hour:", hour);
-  serialPrint("day:", day);
-  timeClient.update();
-  //weekdays
-  if (day>=1 && day<=5) {
-    //busy hour more requests here
-    if (hour >= 7 && hour <= 10 ) {
-      serialPrint("Enabling tasks for morning");
-      if (!taskGetWeatherData.isEnabled() && !taskGetTransportationData.isEnabled()) {
-        lcd.backlight();
-        taskGetWeatherData.enable();
-        taskGetTransportationData.enable();
-      }
+  if (WiFiMulti.run() != WL_CONNECTED){
+    tryNetWorkConnectionNthTime(2);
+  }
+  else {
+    const int hour = timeClient.getHours();
+    const int day = timeClient.getDay(); //0 is sunday 1,2,3,4,5,6
+
+    serialPrint("hour:", hour);
+    serialPrint("day:", day);
+    timeClient.update();
+    serialPrint("loop heap size:", ESP.getFreeHeap());
+
+    if  ((day >= 1 && day <= 5) && (hour >= 7 && hour <= 10)) {
+      lcd.backlight();
+      getTransportationData();
+      getWeatherData();
     }
     else {
       sleepingMode();
     }
-  }
-  //weekends
-  else {
-    serialPrint("Weekend work on demand");
-    sleepingMode();
   }
 }
 
@@ -158,7 +159,7 @@ void readDataWithButton() {
     lcd.backlight();
     getTransportationData();
     getWeatherData();
-    delay(10000);
+    delay(1000);
   }
 }
 
@@ -179,11 +180,28 @@ void printWeatherData(const String weatherMessage) {
 }
 
 String getRequest(const char* endPoint) {
-  String response = "";
-  const int statusCode = client.get(endPoint, &response);
-  serialPrint("Status code:", statusCode);
-  serialPrint(response);
-  return response;
+  if ((WiFiMulti.run() == WL_CONNECTED)) {
+    serialPrint("Connected!");
+    HTTPClient http;
+    http.begin(serverAddress, 80, endPoint);
+
+    const int statusCode = http.GET();
+    serialPrint("Status code:", statusCode);
+
+    if (statusCode != HTTP_CODE_OK) {
+      return "0";
+    }
+    const String payload = http.getString();
+    serialPrint(payload);
+    http.end();
+
+    return payload;
+  }
+  else {
+    serialPrint("Could not connect network");
+    return "0";
+  }
+  delay(1000);
 }
 
 void getTransportationData() {
@@ -194,6 +212,11 @@ void getTransportationData() {
 
   const String dublinBusData = getRequest(dublinbusDataEndPoint);
   const String luasData = getRequest(luasDataEndPoint);
+
+  //if there is no data break from function
+  if (dublinBusData == "0" && luasData == "0") {
+    return;
+  }
 
   JsonArray& rootJsonLuas = jsonBufferTram.parseArray(luasData);
   JsonArray& rootJsonDublinBus = jsonBufferBus.parseArray(dublinBusData);
@@ -302,6 +325,10 @@ void getWeatherData() {
   serialPrint("Getting weather data");
 
   const String weatherData = getRequest(weatherDataEndPoint);
+
+  if (weatherData == "0") {
+    return;
+  }
 
   JsonObject& rootJson = jsonBuffer.parseObject(weatherData);
 
