@@ -4,7 +4,10 @@ parseTramData(xml2js, tramResponseBody) {
    var xmlParser = xml2js.parseString;
    var trams = {};
    xmlParser(tramResponseBody, (error, result) => {
-     trams = result.stopInfo.direction[0].tram;
+     trams = {
+       trams: result.stopInfo.direction[0].tram,
+       message: result.stopInfo.message
+     };
    });
    return trams;
 }

@@ -27,8 +27,11 @@ app.get('/luas/:stopId/:limit*?', (req,res) => {
 
   request(url)
     .then(body => {
-      const tramsRaw = helper.parseTramData(xml2js, body);
-      const stripedTramsData = helper.stripTramsData(tramsRaw,limit);
+      const parcedData = helper.parseTramData(xml2js, body);
+      //luas does not function propery
+      if (!parcedData.message[0].toLowerCase().includes('normally')) res.json({ destination: 'No Luas', dueMins: 0 });
+
+      const stripedTramsData = helper.stripTramsData(parcedData.trams, limit);
       cache.put(stopId, stripedTramsData);
       res.json(stripedTramsData);
       if(features.includes('datadog_api')) datadogApi.metric.send('tramData.success',[now,1]);

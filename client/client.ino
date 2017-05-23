@@ -10,8 +10,8 @@
 const bool DEBUG = true;
 const char* serverAddress = "dublinpt.herokuapp.com";
 const char* wifiSid = "skyconway_com-2263";
-const char* wifiPassword = "";
-const char* luasDataEndPoint = "/luas/tallaght";
+const char* wifiPassword = "labt5c5ghc";
+const char* luasDataEndPoint = "/luas/hospital";
 const char* weatherDataEndPoint = "/weather/Dublin,IE";
 const char* dublinbusDataEndPoint = "/bus/4646";
 const int MAXLINENUMBER = 3; // max line number for transportation information
@@ -254,6 +254,7 @@ void getTransportationData() {
 
     String* messages = createLcdMessages(luasDataArraySize, dublinBusDataArraySize, rootJsonLuas, rootJsonDublinBus);
     printLcdMessages(messages);
+    delete[] messages;
   }
 }
 
