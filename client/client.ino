@@ -99,11 +99,11 @@ void tryNetWorkConnectionNthTime(int tryCount) {
       serialPrint("Connected!");
     }
     else {
-      serialPrint("Could not connect in setup()");
+      serialPrint("Could not connect to internet");
+      serialPrint("Retrying connection", tryCount);
+      tryCount++;
+      delay(1000);
     }
-    delay(1000);
-    tryCount++;
-    serialPrint("Retrying connection", tryCount);
   }
 }
 
@@ -264,8 +264,6 @@ int calculateRequiredLineNumber(int luasDataArraySize, int dublinBusDataArraySiz
   return requiredLineNumber;
 }
 
-// TODO check all cases i.e if luas don't return data but dublin bus returns
-// imagine luas = 0 dublinbus is 3
 String* createLcdMessages(int luasDataArraySize, int dublinBusDataArraySize, JsonArray& rootJsonLuas, JsonArray& rootJsonDublinBus) {
   const int commonSmallIndex = luasDataArraySize <= dublinBusDataArraySize ? luasDataArraySize : dublinBusDataArraySize;
   lineNumber = calculateRequiredLineNumber(luasDataArraySize, dublinBusDataArraySize);
@@ -306,7 +304,6 @@ String* createLcdMessages(int luasDataArraySize, int dublinBusDataArraySize, Jso
       serialPrint(lcdMessages[i]);
     }
   }
-
   return lcdMessages;
 }
 
