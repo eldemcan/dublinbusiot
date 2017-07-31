@@ -19,6 +19,21 @@ var port = process.env.PORT || 8080;
 datadogApi.initialize(dogApiOptions);
 const features = process.env.FEATURES.split(",");
 
+/**
+ * @api {get} /luas/:stopId/:limit*? Get luas information
+ * @apiName GetLuas
+ * @apiGroup Public Transport
+ *
+ * @apiParam {String} stopId Luas stop id i.e Tallaght
+ * @apiParam {Number} [limit=3] Number of stop information to return
+ *
+ * @apiSuccessExample Success-Response:
+ *   HTTP/1.1 200 OK
+ *   {
+ *     "destination": "point",
+ *     "dueMins": "8"
+ *   }
+ */
 app.get('/luas/:stopId/:limit*?', (req,res) => {
   const stopId = req.params.stopId;
   const limit = req.params.limit || 3;
@@ -46,6 +61,22 @@ app.get('/luas/:stopId/:limit*?', (req,res) => {
 });
 
 
+/**
+ * @api {get} /bus/:stopNo/:filter?/:limit? Get bus information
+ * @apiName GetDublinBus
+ * @apiGroup Public Transport
+ *
+ * @apiParam {Number} stopId Bus stop id i.e  4456
+ * @apiParam {Number} [filter = "54A, 27, 65"] Bus numbers that you would like to filter
+ * @apiParam {Number} [limit=3] Number of stop information to return
+ *
+ * @apiSuccessExample Success-Response:
+ *   HTTP/1.1 200 OK
+ *   {
+ *     "route": "27",
+ *     "dueTime": "21"
+ *   }
+ */
 app.get('/bus/:stopNo/:filter?/:limit?', (req, res) => {
   const stopNo = req.params.stopNo;
   const limit = req.params.limit || 3;
@@ -85,6 +116,23 @@ app.get('/bus/:stopNo/:filter?/:limit?', (req, res) => {
     });
 });
 
+
+/**
+ * @api {get} /weather/:city,:country' Get weather information
+ * @apiName GetWeather
+ * @apiGroup Weather
+ *
+ * @apiParam {String} city City name
+ * @apiParam {String} country Country code
+ *
+ * @apiSuccessExample Success-Response:
+ *   HTTP/1.1 200 OK
+ *   {
+ *    "description": Sunny,
+ *    "temperature": 18,
+ *     "windSpeed" : 20,
+ *   }
+ */
 app.get('/weather/:city,:country', (req,res) => {
   const APIKEY=process.env.WEATHERAPI;
   const oneHour = 3600000;
